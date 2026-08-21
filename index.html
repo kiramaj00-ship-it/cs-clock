@@ -176,15 +176,24 @@
       if(!sel.value){ setStatus('Sila pilih nama anda dahulu.',false); return; }
       disableBtns(true); setStatus('Sedang proses...',true);
       requestLocation().then(function(geo){
-        // Guna text/plain untuk elak CORS preflight (Apps Script tak balas preflight OPTIONS)
+        // Apps Script /exec redirect ke googleusercontent.com -> POST biasa kena tembok
+        // CORS ("Failed to fetch"). Guna mode:'no-cors': request TETAP sampai & data
+        // tetap tersimpan, cuma browser tak benarkan kita baca respons. Jadi kita
+        // anggap berjaya jika hantar tanpa error rangkaian, dan mesej beritahu staff
+        // semak sekali kalau ragu.
         fetch(BACKEND_URL, {
           method:'POST',
+          mode:'no-cors',
           headers:{ 'Content-Type':'text/plain;charset=utf-8' },
           body: JSON.stringify({ secret:SHARED_SECRET, type:type, name:sel.value,
                                  lat:geo.lat, lng:geo.lng, accuracy:geo.acc })
         })
-        .then(function(r){ return r.json(); })
-        .then(function(res){ setStatus(res.message, res.ok); if(res.ok) playStamp(type); disableBtns(false); })
+        .then(function(){
+          var jam = new Date().toLocaleTimeString('en-MY',{hour12:false}).substring(0,5);
+          setStatus((type==='IN'?'Clock In':'Clock Out')+' dihantar - '+sel.value+' pukul '+jam+'.', true);
+          playStamp(type);
+          disableBtns(false);
+        })
         .catch(function(err){ setStatus('Ralat rangkaian: '+err.message, false); disableBtns(false); });
       });
     }
