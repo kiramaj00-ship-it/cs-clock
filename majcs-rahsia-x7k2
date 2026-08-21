@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CS Team - Clock In / Out</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:#EEF1F0; --panel-lcd:#20242B; --lcd:#7CDBB0; --lcd-date:#A7ADB8;
+      --paper:#FBFAF6; --ink:#20242B; --muted:#6B7280;
+      --in-color:#1B6B5C; --in-color-dark:#144F44; --out-color:#96382B; --out-color-dark:#742A20;
+      --ok-bg:#E4F1EC; --ok-text:#144F44; --err-bg:#F7E7E4; --err-text:#742A20;
+      --card-shadow:0 1px 0 rgba(0,0,0,0.03);
+    }
+    :root[data-theme="dark"] {
+      --bg:#14171A; --panel-lcd:#171A1F; --lcd:#7CDBB0; --lcd-date:#7A828D;
+      --paper:#20242B; --ink:#EDEFEF; --muted:#9AA1AC;
+      --in-color:#2B8571; --in-color-dark:#59C4A8; --out-color:#B04A38; --out-color-dark:#E39280;
+      --ok-bg:#16332A; --ok-text:#7FDCB8; --err-bg:#3A211D; --err-text:#E8A99A; --card-shadow:none;
+    }
+    * { box-sizing:border-box; }
+    html { background:var(--bg); }
+    body {
+      margin:0; background:var(--bg); font-family:'IBM Plex Sans',Arial,sans-serif; color:var(--ink);
+      min-height:100vh; display:flex; align-items:center; justify-content:center; padding:28px 16px;
+      transition:background .2s ease;
+    }
+    .card { width:100%; max-width:360px; background:var(--paper); border-radius:18px; overflow:hidden;
+      box-shadow:var(--card-shadow); position:relative; transition:background .2s ease; }
+    .topbar { display:flex; align-items:center; justify-content:center; position:relative; padding:16px 0 10px; }
+    .eyebrow { text-align:center; font-size:11px; letter-spacing:.14em; color:var(--muted);
+      text-transform:uppercase; font-weight:600; margin:0; }
+    .theme-btn { position:absolute; right:14px; top:50%; transform:translateY(-50%); width:30px; height:30px;
+      border-radius:50%; border:none; background:transparent; color:var(--muted); cursor:pointer;
+      display:flex; align-items:center; justify-content:center; }
+    .theme-btn:hover { color:var(--ink); }
+    .theme-btn svg { width:17px; height:17px; }
+    .lcd { background:var(--panel-lcd); margin:0 16px 0; border-radius:12px; padding:20px 16px 18px;
+      text-align:center; transition:background .2s ease; }
+    .lcd-time { font-family:'Space Mono',monospace; font-weight:700; font-size:34px; letter-spacing:.05em;
+      color:var(--lcd); margin:0; }
+    .lcd-date { font-size:12.5px; color:var(--lcd-date); margin:6px 0 0; }
+    .perf { height:14px; margin:0 8px; background-image:radial-gradient(circle at 7px 0, var(--bg) 6px, transparent 6.5px);
+      background-size:18px 14px; background-repeat:repeat-x; background-position:top center; transition:background-image .2s ease; }
+    .ticket { padding:4px 22px 6px; text-align:center; }
+    .ticket-label { font-size:10.5px; letter-spacing:.12em; color:var(--muted); text-transform:uppercase; margin:0 0 3px; }
+    .staff-select { width:100%; padding:11px 12px; font-family:'IBM Plex Sans',Arial,sans-serif; font-size:14px;
+      font-weight:500; color:var(--ink); background:var(--bg); border:1px solid var(--muted); border-radius:8px; }
+    .actions { padding:16px 22px 6px; }
+    .btn { display:block; width:100%; padding:16px; font-family:'IBM Plex Sans',Arial,sans-serif; font-size:15.5px;
+      font-weight:600; color:#fff; border:none; border-radius:10px; cursor:pointer; margin-bottom:10px;
+      transition:transform .08s ease, background .2s ease; }
+    .btn:active { transform:scale(.97); }
+    .btn:disabled { opacity:.45; cursor:not-allowed; }
+    #btnIn { background:var(--in-color); }
+    #btnIn:not(:disabled):hover { background:var(--in-color-dark); }
+    #btnOut { background:var(--out-color); }
+    #btnOut:not(:disabled):hover { background:var(--out-color-dark); }
+    .status-zone { position:relative; min-height:44px; padding:4px 22px 4px; }
+    #status { font-size:13.5px; text-align:center; padding:10px 12px; border-radius:8px; display:none; }
+    #status.show { display:block; }
+    #status.ok { background:var(--ok-bg); color:var(--ok-text); }
+    #status.err { background:var(--err-bg); color:var(--err-text); }
+    .stamp { position:absolute; left:50%; top:4px; transform:translateX(-50%) scale(1.3) rotate(-7deg);
+      opacity:0; pointer-events:none; border:3px solid currentColor; border-radius:8px; padding:3px 10px;
+      font-family:'Space Mono',monospace; font-weight:700; font-size:12px; letter-spacing:.06em; text-transform:uppercase; }
+    .stamp.play { animation:stampIn 1.6s ease forwards; }
+    .stamp.in { color:var(--in-color-dark); } .stamp.out { color:var(--out-color-dark); }
+    @keyframes stampIn { 0%{opacity:0;transform:translateX(-50%) scale(1.5) rotate(-7deg);}
+      15%{opacity:1;transform:translateX(-50%) scale(1) rotate(-7deg);}
+      75%{opacity:1;transform:translateX(-50%) scale(1) rotate(-7deg);}
+      100%{opacity:0;transform:translateX(-50%) scale(1) rotate(-7deg);} }
+    @media (prefers-reduced-motion: reduce) { .stamp.play{animation:none;} .btn,.card,body,.lcd{transition:none;} }
+    .geo-note { text-align:center; font-size:11px; color:var(--muted); padding:6px 22px 18px; min-height:14px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="topbar">
+      <p class="eyebrow">CS Team &middot; Punch Clock</p>
+      <button class="theme-btn" id="themeBtn" aria-label="Tukar tema" type="button"></button>
+    </div>
+    <div class="lcd">
+      <p class="lcd-time" id="clock">--:--:--</p>
+      <p class="lcd-date" id="dateline">-</p>
+    </div>
+    <div class="perf"></div>
+    <div class="ticket">
+      <p class="ticket-label">Pilih Nama Anda</p>
+      <select class="staff-select" id="staffSelect"><option value="">Memuatkan senarai...</option></select>
+    </div>
+    <div class="actions">
+      <button id="btnIn" class="btn" disabled>Clock In</button>
+      <button id="btnOut" class="btn" disabled>Clock Out</button>
+    </div>
+    <div class="status-zone">
+      <div class="stamp" id="stamp"></div>
+      <div id="status"></div>
+    </div>
+    <p class="geo-note" id="geoNote"></p>
+  </div>
+
+  <script>
+    // ========================================================================
+    // >>> TUKAR 2 NILAI INI:
+    var BACKEND_URL = 'https://script.google.com/macros/s/AKfycbyWHTa4GGrwEPimld0xKWUPjaMIHEpz9snWPjoxCX9RUE6hc5Lv-p4RmTMfoCEDFYs/exec';   // URL /exec dari Apps Script
+    var SHARED_SECRET = 'majcs-rahsia-x7k2';        // MESTI sama dengan Code.gs
+    // ========================================================================
+
+    var MOON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+    var SUN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>';
+
+    function applyTheme(t){ document.documentElement.setAttribute('data-theme',t);
+      document.getElementById('themeBtn').innerHTML = t==='dark'?SUN:MOON;
+      try{ localStorage.setItem('cs-clock-theme',t); }catch(e){} }
+    (function(){ var s=null; try{ s=localStorage.getItem('cs-clock-theme'); }catch(e){}
+      if(!s){ s=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light'; }
+      applyTheme(s); })();
+    document.getElementById('themeBtn').addEventListener('click',function(){
+      applyTheme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark'); });
+
+    var HARI=['Ahad','Isnin','Selasa','Rabu','Khamis','Jumaat','Sabtu'];
+    var BULAN=['Januari','Februari','Mac','April','Mei','Jun','Julai','Ogos','September','Oktober','November','Disember'];
+    function tick(){ var n=new Date(); var p=function(x){return String(x).padStart(2,'0');};
+      document.getElementById('clock').textContent=p(n.getHours())+':'+p(n.getMinutes())+':'+p(n.getSeconds());
+      document.getElementById('dateline').textContent=HARI[n.getDay()]+', '+n.getDate()+' '+BULAN[n.getMonth()]+' '+n.getFullYear(); }
+    setInterval(tick,1000); tick();
+
+    var geoNote=document.getElementById('geoNote');
+    var sel=document.getElementById('staffSelect');
+    var btnIn=document.getElementById('btnIn'), btnOut=document.getElementById('btnOut');
+
+    // ---- Muat senarai staff via JSONP (elak CORS pada GET) ----
+    window.__staffCb = function(res){
+      sel.innerHTML='<option value="">-- Pilih nama anda --</option>';
+      if(res && res.ok && res.names){
+        res.names.forEach(function(n){ var o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o); });
+      } else {
+        sel.innerHTML='<option value="">Ralat memuat senarai</option>';
+      }
+    };
+    (function loadStaff(){
+      var s=document.createElement('script');
+      s.src=BACKEND_URL+'?callback=__staffCb';
+      s.onerror=function(){ sel.innerHTML='<option value="">Ralat sambung ke server</option>'; };
+      document.body.appendChild(s);
+    })();
+
+    sel.addEventListener('change',function(){
+      var on = !!sel.value; btnIn.disabled=!on; btnOut.disabled=!on;
+    });
+
+    function requestLocation(){
+      return new Promise(function(resolve){
+        if(!navigator.geolocation){ geoNote.textContent='Peranti tidak sokong lokasi.'; resolve({lat:null,lng:null,acc:null}); return; }
+        geoNote.textContent='Mengesan lokasi...';
+        navigator.geolocation.getCurrentPosition(
+          function(pos){ geoNote.textContent='Lokasi dikesan (\u00b1'+Math.round(pos.coords.accuracy)+'m)';
+            resolve({lat:pos.coords.latitude,lng:pos.coords.longitude,acc:pos.coords.accuracy}); },
+          function(err){ geoNote.textContent='Lokasi gagal: '+err.message+' - clock diteruskan.';
+            resolve({lat:null,lng:null,acc:null}); },
+          { enableHighAccuracy:true, timeout:10000, maximumAge:30000 }
+        );
+      });
+    }
+
+    function setStatus(msg,ok){ var el=document.getElementById('status'); el.textContent=msg; el.className='show '+(ok?'ok':'err'); }
+    function playStamp(type){ var s=document.getElementById('stamp'); s.className='stamp'; void s.offsetWidth;
+      s.textContent=type==='IN'?'Clocked in':'Clocked out'; s.classList.add(type==='IN'?'in':'out'); s.classList.add('play'); }
+    function disableBtns(d){ btnIn.disabled=d; btnOut.disabled=d; }
+
+    function doClock(type){
+      if(!sel.value){ setStatus('Sila pilih nama anda dahulu.',false); return; }
+      disableBtns(true); setStatus('Sedang proses...',true);
+      requestLocation().then(function(geo){
+        // Guna text/plain untuk elak CORS preflight (Apps Script tak balas preflight OPTIONS)
+        fetch(BACKEND_URL, {
+          method:'POST',
+          headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+          body: JSON.stringify({ secret:SHARED_SECRET, type:type, name:sel.value,
+                                 lat:geo.lat, lng:geo.lng, accuracy:geo.acc })
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(res){ setStatus(res.message, res.ok); if(res.ok) playStamp(type); disableBtns(false); })
+        .catch(function(err){ setStatus('Ralat rangkaian: '+err.message, false); disableBtns(false); });
+      });
+    }
+    btnIn.addEventListener('click',function(){ doClock('IN'); });
+    btnOut.addEventListener('click',function(){ doClock('OUT'); });
+  </script>
+</body>
+</html>
